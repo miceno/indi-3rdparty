@@ -325,6 +325,13 @@ void RollOffIno::TimerHit()
     if (!isConnected())
         return; //  No need to reset timer if we are not connected anymore
 
+    processReconnect();
+    if (isReconnectPending())
+    {
+        SetTimer(1000);
+        return;
+    }
+
     uint32_t delay = getPollingPeriod();
     updateRoofStatus();
     if (DomeMotionSP.getState() == IPS_BUSY)
@@ -738,6 +745,7 @@ bool RollOffIno::getRoofSwitch(const char *switchId, bool *result,  ISState *swi
     {
         if (communicationErrors < MAX_CNTRL_COM_ERR)
             LOG_WARN("No contact with the roof controller has been established");
+        reportConnectionResult(false, "roof controller contact not established");
         return false;
     }
     if (switchId == nullptr || result == nullptr || switchState == nullptr)
@@ -766,6 +774,7 @@ bool RollOffIno::getRoofSwitch(const char *switchId, bool *result,  ISState *swi
     {
         if (communicationErrors < MAX_CNTRL_COM_ERR)
             LOGF_WARN("Unable to obtain from the controller status: %s, errors: %d", switchId, ++communicationErrors);
+        reportConnectionResult(false, "failed to evaluate roof switch response");
         return false;
     }
 }
@@ -785,6 +794,7 @@ bool RollOffIno::sendRoofCommand(const char* button, bool switchOn, bool ignoreL
     {
         if (communicationErrors < MAX_CNTRL_COM_ERR)
             LOG_WARN("No contact with the roof controller has been established");
+        reportConnectionResult(false, "roof controller contact not established");
         return false;
     }
     if ((roofLockedSwitch == ISS_OFF) || ignoreLock)
@@ -800,6 +810,7 @@ bool RollOffIno::sendRoofCommand(const char* button, bool switchOn, bool ignoreL
             return false;
         if ((status = readIno(readBuffer)))
             status = evaluateResponse(writeBuffer, readBuffer, &responseState);
+        reportConnectionResult(status, "roof command execution failed");
         return status;
     }
     else
@@ -823,9 +834,11 @@ bool RollOffIno::evaluateResponse(char* request, char* response, bool* result)
         // Return ON/OFF as true/false
         size_t pos = s_response.find(on);
         *result = (pos != std::string::npos ? true : false);
+        reportConnectionResult(true);
         return true;
     }
     LOGF_WARN("The request %s, returned failed response %s", request, response);
+    reportConnectionResult(false, "negative or malformed controller response");
     return false;
 }
 
@@ -865,11 +878,13 @@ bool RollOffIno::initialContact()
     actionCount = 0;
     if (!writeIno(init))
     {
+        reportConnectionResult(false, "initial contact write failed");
         return false;
     }
     if (!readIno(readBuffer))
     {
         LOGF_WARN("Failed reading initial contact reponse to %s", init);
+        reportConnectionResult(false, "initial contact read failed");
         return false;
     }
     // "(ACK:0:V1.3-0  [ACTn])",
@@ -916,11 +931,13 @@ bool RollOffIno::initialContact()
             LOGF_ERROR("Regex error during initial contact: %s. Regex pattern: \\[ACT(\\d+)\\]", e.what());
         }
         contactEstablished = true;
+        reportConnectionResult(true);
         //DEBUGF(INDI::Logger::DBG_SESSION, "Initial contact response: %s", readBuffer);
         LOGF_INFO("Number of Action commands enabled by controller. %d", actionCount);
         return true;
     }
     LOGF_WARN("Initial contact returned a negative acknowledgement %s", readBuffer);
+    reportConnectionResult(false, "initial contact negative acknowledgement");
     return false;
 }
 
@@ -1021,11 +1038,13 @@ bool RollOffIno::CommandOutput(uint32_t index, OutputState command)
     if (!writeIno(cmd))
     {
         LOGF_WARN("Failed issuing %s command", cmd);
+        reportConnectionResult(false, "output command write failed");
         return false;
     }
     if (!readIno(response))
     {
         LOGF_WARN("Failed reading response to %s command", cmd);
+        reportConnectionResult(false, "output command read failed");
         return false;
     }
 
@@ -1043,27 +1062,34 @@ bool RollOffIno::CommandOutput(uint32_t index, OutputState command)
                 std::string result = match.str();
                 pos = s_cmd.find(result); // s_cmd is the original command string sent
                 if (pos != std::string::npos) // Check if the matched part of response is in the command sent
+                {
+                    reportConnectionResult(true);
                     return true;
+                }
                 else
                 {
                     LOGF_WARN("Command %s confirmation matching failed. Matched '%s' in response '%s', but not found in original command.", cmd,
                               result.c_str(), response);
+                    reportConnectionResult(false, "output command confirmation mismatch");
                     return false;
                 }
             }
             else
             {
                 LOGF_WARN("Command %s received ACK, but expected pattern not found in response '%s'", cmd, response);
+                reportConnectionResult(false, "output command pattern missing in ACK response");
                 return false;
             }
         }
         catch (const std::regex_error& e)
         {
             LOGF_ERROR("Regex error during command output: %s. Regex pattern: :([(A-Z])+(\\d)*([(A-Z])*:", e.what());
+            reportConnectionResult(false, "output command regex parse error");
             return false;
         }
     }
     LOGF_WARN("Command %s negative acknowledgement returned %s", cmd, response);
+    reportConnectionResult(false, "output command negative acknowledgement");
     return false;
 }
 
@@ -1085,6 +1111,7 @@ bool RollOffIno::readIno(char* retBuf)
             continue;
         }
         LOGF_DEBUG("Read from roof controller: %s", retBuf);
+        reportConnectionResult(true);
         return true;
     }
     if (rc != TTY_OK)
@@ -1093,6 +1120,7 @@ bool RollOffIno::readIno(char* retBuf)
         tty_error_msg(rc, errstr, MAXRBUF - 1);
         LOGF_ERROR("Arduino connection read error: %s.", errstr);
     }
+    reportConnectionResult(false, "controller read failed");
     return false;
 }
 
@@ -1107,17 +1135,30 @@ bool RollOffIno::writeIno(const char* msg)
     if (strlen(msg) >= MAXOUTBUF - 1)
     {
         LOG_ERROR("Roof controller command message too long");
+        reportConnectionResult(false, "controller write message too long");
         return false;
     }
     LOGF_DEBUG("Sent to roof controller: %s", msg);
-    tcflush(PortFD, TCIOFLUSH);
+    if (isatty(PortFD))
+        tcflush(PortFD, TCIOFLUSH);
     status = tty_write_string(PortFD, msg, &retMsgLen);
     if (status != TTY_OK)
     {
         char errstr[MAXRBUF];
         tty_error_msg(status, errstr, MAXRBUF);
         LOGF_DEBUG("Arduino Connection write error: %s", errstr);
+        reportConnectionResult(false, "controller write failed");
         return false;
     }
+    reportConnectionResult(true);
     return true;
 }
+
+void RollOffIno::onReconnectSuccess()
+{
+    contactEstablished = false;
+    communicationErrors = 0;
+    initialContact();
+    checkConditions();
+}
+

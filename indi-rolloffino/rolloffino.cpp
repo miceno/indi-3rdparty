@@ -108,7 +108,18 @@ bool RollOffIno::initProperties()
 bool RollOffIno::updateProperties()
 {
     INDI::Dome::updateProperties();
-    if (isConnected())
+    // Treat BUSY as connected enough so that properties remain available while reconnects are in progress.
+    bool connActive = false;
+    {
+        auto connSP = getSwitch(INDI::SP::CONNECTION);
+        if (connSP)
+        {
+            IPState s = connSP.getState();
+            connActive = (s == IPS_OK || s == IPS_BUSY);
+        }
+    }
+
+    if (connActive)
     {
         if (!InitPark())
         {
@@ -325,14 +336,21 @@ void RollOffIno::roofTimerExpired()
 ////////////////////////////////////////////////////////////////////////////////////////
 void RollOffIno::TimerHit()
 {
-    if (!isConnected())
-        return; //  No need to reset timer if we are not connected anymore
-
+    // Always drive the reconnect state machine before deciding whether to continue
+    // normal polling. This ensures reconnect attempts proceed even when the
+    // device is not currently considered fully connected (e.g. CONNECTION=BUSY).
     processReconnect();
-    if (isReconnectPending())
+
+    if (!isConnected())
     {
-        SetTimer(1000);
-        return;
+        // If reconnect attempts are pending, keep the timer running so processReconnect
+        // will be invoked again. Otherwise, nothing to do while disconnected.
+        if (isReconnectPending())
+        {
+            SetTimer(1000);
+            return;
+        }
+        return; // Not connected, skip normal polling
     }
 
     uint32_t delay = getPollingPeriod();
@@ -404,6 +422,9 @@ void RollOffIno::msSleep (int mSec)
 ////////////////////////////////////////////////////////////////////////////////////////
 bool RollOffIno::checkConditions()
 {
+    if (!isConnected()) {
+      return false;
+    }
     updateRoofStatus();
     Dome::DomeState curState = getDomeState();
 
@@ -645,6 +666,10 @@ void RollOffIno::updateRoofStatus()
     bool auxiliaryStatus = false;
     bool openedStatus = false;
     bool closedStatus = false;
+    if (!isConnected()) {
+      return;
+    }
+
     getRoofSwitch(ROOF_OPENED_SWITCH, &openedStatus, &fullyOpenedLimitSwitch);
     getRoofSwitch(ROOF_CLOSED_SWITCH, &closedStatus, &fullyClosedLimitSwitch);
     getRoofSwitch(ROOF_LOCKED_SWITCH, &lockedStatus, &roofLockedSwitch);
@@ -1122,6 +1147,9 @@ bool RollOffIno::readIno(char* retBuf)
         char errstr[MAXRBUF] = {0};
         tty_error_msg(rc, errstr, MAXRBUF - 1);
         LOGF_ERROR("Arduino connection read error: %s.", errstr);
+        // Mark the connection as failed. Set CONNECT to OFF and state to ALERT so
+        // clients see the failure and reconnect logic can start.
+        setConnected(false, IPS_ALERT, "unable to read from roof controller");
     }
     reportConnectionResult(false, "controller read failed");
     return false;
@@ -1150,6 +1178,8 @@ bool RollOffIno::writeIno(const char* msg)
         char errstr[MAXRBUF];
         tty_error_msg(status, errstr, MAXRBUF);
         LOGF_DEBUG("Arduino Connection write error: %s", errstr);
+        // Mark the connection as failed.
+        setConnected(false, IPS_ALERT);
         reportConnectionResult(false, "controller write failed");
         return false;
     }

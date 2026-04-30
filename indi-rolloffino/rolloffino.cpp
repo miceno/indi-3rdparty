@@ -53,7 +53,7 @@ bool RollOffIno::ISSnoopDevice(XMLEle *root)
 ////////////////////////////////////////////////////////////////////////////////////////
 RollOffIno::RollOffIno() : INDI::InputInterface(this), INDI::OutputInterface(this)
 {
-    setVersion(1, 1);
+    setVersion(INDI_ROLLOFFINO_VERSION_MAJOR, INDI_ROLLOFFINO_VERSION_MINOR);
     SetDomeCapability(DOME_CAN_ABORT | DOME_CAN_PARK);           // Need the DOME_CAN_PARK capability for the scheduler
 }
 

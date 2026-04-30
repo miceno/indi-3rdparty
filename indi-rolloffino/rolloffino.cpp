@@ -1153,9 +1153,6 @@ bool RollOffIno::readIno(char* retBuf)
         // can count the failure and schedule reconnect attempts if necessary.
         reportConnectionResult(false, "controller read failed");
 
-        // Then mark the CONNECTION property as ALERT / disconnected so clients see
-        // the failure state.
-        setConnected(true, IPS_ALERT, "unable to read from roof controller");
     }
     return false;
 }
@@ -1187,8 +1184,6 @@ bool RollOffIno::writeIno(const char* msg)
         // First report the connection failure so reconnect logic runs.
         reportConnectionResult(false, "controller write failed");
 
-        // Then set the CONNECTION to ALERT to notify clients.
-        setConnected(true, IPS_ALERT);
         return false;
     }
     reportConnectionResult(true);

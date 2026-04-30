@@ -24,6 +24,8 @@
  * determines how the open/close commands are enacted. Might use relays, linear actuators
  * or variable speed motors. Stopping roof movement is the responsibilty of the Arduino or
  * controllers that it in turn uses.
+ *
+ * v1.1: introduces retries and recovery in case of a communication failure
  */
 
 #include <cstring>
@@ -51,7 +53,7 @@ bool RollOffIno::ISSnoopDevice(XMLEle *root)
 ////////////////////////////////////////////////////////////////////////////////////////
 RollOffIno::RollOffIno() : INDI::InputInterface(this), INDI::OutputInterface(this)
 {
-    setVersion(1, 0);
+    setVersion(1, 1);
     SetDomeCapability(DOME_CAN_ABORT | DOME_CAN_PARK);           // Need the DOME_CAN_PARK capability for the scheduler
 }
 

@@ -404,9 +404,6 @@ void RollOffIno::msSleep (int mSec)
 ////////////////////////////////////////////////////////////////////////////////////////
 bool RollOffIno::checkConditions()
 {
-    if (!isConnected()) {
-      return false;
-    }
     updateRoofStatus();
     Dome::DomeState curState = getDomeState();
 
@@ -648,10 +645,6 @@ void RollOffIno::updateRoofStatus()
     bool auxiliaryStatus = false;
     bool openedStatus = false;
     bool closedStatus = false;
-    if (!isConnected()) {
-      return;
-    }
-
     getRoofSwitch(ROOF_OPENED_SWITCH, &openedStatus, &fullyOpenedLimitSwitch);
     getRoofSwitch(ROOF_CLOSED_SWITCH, &closedStatus, &fullyClosedLimitSwitch);
     getRoofSwitch(ROOF_LOCKED_SWITCH, &lockedStatus, &roofLockedSwitch);
@@ -1129,7 +1122,6 @@ bool RollOffIno::readIno(char* retBuf)
         char errstr[MAXRBUF] = {0};
         tty_error_msg(rc, errstr, MAXRBUF - 1);
         LOGF_ERROR("Arduino connection read error: %s.", errstr);
-        setConnected(true, IPS_ALERT, "unable to read from roof controller");
     }
     reportConnectionResult(false, "controller read failed");
     return false;
@@ -1158,7 +1150,6 @@ bool RollOffIno::writeIno(const char* msg)
         char errstr[MAXRBUF];
         tty_error_msg(status, errstr, MAXRBUF);
         LOGF_DEBUG("Arduino Connection write error: %s", errstr);
-        setConnected(true, IPS_ALERT);
         reportConnectionResult(false, "controller write failed");
         return false;
     }

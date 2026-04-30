@@ -51,7 +51,6 @@ protected:
     virtual bool Connect() override;
     virtual bool Disconnect() override;
     virtual void TimerHit() override;
-    void onReconnectSuccess() override;
     virtual IPState Move(DomeDirection dir, DomeMotionCommand operation) override;
     virtual IPState Park() override;
     virtual IPState UnPark() override;

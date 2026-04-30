@@ -1155,7 +1155,7 @@ bool RollOffIno::readIno(char* retBuf)
 
         // Then mark the CONNECTION property as ALERT / disconnected so clients see
         // the failure state.
-        setConnected(false, IPS_ALERT, "unable to read from roof controller");
+        setConnected(true, IPS_ALERT, "unable to read from roof controller");
     }
     return false;
 }
@@ -1188,7 +1188,7 @@ bool RollOffIno::writeIno(const char* msg)
         reportConnectionResult(false, "controller write failed");
 
         // Then set the CONNECTION to ALERT to notify clients.
-        setConnected(false, IPS_ALERT);
+        setConnected(true, IPS_ALERT);
         return false;
     }
     reportConnectionResult(true);

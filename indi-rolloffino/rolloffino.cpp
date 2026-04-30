@@ -863,6 +863,7 @@ bool RollOffIno::evaluateResponse(char* request, char* response, bool* result)
         // Return ON/OFF as true/false
         size_t pos = s_response.find(on);
         *result = (pos != std::string::npos ? true : false);
+        LOGF_INFO("Success evaluateResponse");
         reportConnectionResult(true);
         return true;
     }
@@ -1092,6 +1093,7 @@ bool RollOffIno::CommandOutput(uint32_t index, OutputState command)
                 pos = s_cmd.find(result); // s_cmd is the original command string sent
                 if (pos != std::string::npos) // Check if the matched part of response is in the command sent
                 {
+                    LOGF_INFO("commandOutput");
                     reportConnectionResult(true);
                     return true;
                 }
@@ -1139,7 +1141,7 @@ bool RollOffIno::readIno(char* retBuf)
             msSleep(1000);
             continue;
         }
-        LOGF_DEBUG("Read from roof controller: %s", retBuf);
+        LOGF_INFO("Read from roof controller: %s", retBuf);
         reportConnectionResult(true);
         return true;
     }
@@ -1186,6 +1188,7 @@ bool RollOffIno::writeIno(const char* msg)
 
         return false;
     }
+    LOGF_INFO("Success writeIno");
     reportConnectionResult(true);
     return true;
 }

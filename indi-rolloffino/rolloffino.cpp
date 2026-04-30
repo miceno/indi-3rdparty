@@ -913,7 +913,7 @@ bool RollOffIno::initialContact()
     }
     if (!readIno(readBuffer))
     {
-        LOGF_WARN("Failed reading initial contact reponse to %s", init);
+        LOGF_WARN("Failed reading initial contact response to %s", init);
         reportConnectionResult(false, "initial contact read failed");
         return false;
     }
@@ -1189,7 +1189,7 @@ bool RollOffIno::writeIno(const char* msg)
         return false;
     }
     LOG_INFO("Success writeIno");
-    reportConnectionResult(true);
+    // reportConnectionResult(true);
     return true;
 }
 

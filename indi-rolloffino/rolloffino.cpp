@@ -25,7 +25,7 @@
  * or variable speed motors. Stopping roof movement is the responsibilty of the Arduino or
  * controllers that it in turn uses.
  *
- * v1.1: introduces retries and recovery in case of a communication failure
+ * v1.4: introduces retries and recovery in case of a communication failure
  */
 
 #include <cstring>
@@ -33,8 +33,8 @@
 #include <memory>
 #include <string>
 #include <regex>
-#include "config.h"
 #include "indistandardproperty.h"
+#include "config.h"
 #include "rolloffino.h"
 
 // We declare an auto pointer to RollOffIno.
@@ -1148,11 +1148,15 @@ bool RollOffIno::readIno(char* retBuf)
         char errstr[MAXRBUF] = {0};
         tty_error_msg(rc, errstr, MAXRBUF - 1);
         LOGF_ERROR("Arduino connection read error: %s.", errstr);
-        // Mark the connection as failed. Set CONNECT to OFF and state to ALERT so
-        // clients see the failure and reconnect logic can start.
+
+        // First report the connection failure so the base reconnect bookkeeping
+        // can count the failure and schedule reconnect attempts if necessary.
+        reportConnectionResult(false, "controller read failed");
+
+        // Then mark the CONNECTION property as ALERT / disconnected so clients see
+        // the failure state.
         setConnected(false, IPS_ALERT, "unable to read from roof controller");
     }
-    reportConnectionResult(false, "controller read failed");
     return false;
 }
 
@@ -1179,9 +1183,12 @@ bool RollOffIno::writeIno(const char* msg)
         char errstr[MAXRBUF];
         tty_error_msg(status, errstr, MAXRBUF);
         LOGF_DEBUG("Arduino Connection write error: %s", errstr);
-        // Mark the connection as failed.
-        setConnected(false, IPS_ALERT);
+
+        // First report the connection failure so reconnect logic runs.
         reportConnectionResult(false, "controller write failed");
+
+        // Then set the CONNECTION to ALERT to notify clients.
+        setConnected(false, IPS_ALERT);
         return false;
     }
     reportConnectionResult(true);

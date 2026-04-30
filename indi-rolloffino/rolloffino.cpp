@@ -34,6 +34,7 @@
 #include <string>
 #include <regex>
 #include "config.h"
+#include "indistandardproperty.h"
 #include "rolloffino.h"
 
 // We declare an auto pointer to RollOffIno.

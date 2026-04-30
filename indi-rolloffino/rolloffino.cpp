@@ -1177,12 +1177,7 @@ bool RollOffIno::writeIno(const char* msg)
     if (isatty(PortFD))
         tcflush(PortFD, TCIOFLUSH);
     status = tty_write_string(PortFD, msg, &retMsgLen);
-    if (status == TTY_OK)
-    {
-        LOG_INFO("Success writeIno");
-        reportConnectionResult(true);
-    }
-    else
+    if (status != TTY_OK)
     {
         char errstr[MAXRBUF];
         tty_error_msg(status, errstr, MAXRBUF);
@@ -1193,6 +1188,8 @@ bool RollOffIno::writeIno(const char* msg)
 
         return false;
     }
+    LOG_INFO("Success writeIno");
+    reportConnectionResult(true);
     return true;
 }
 

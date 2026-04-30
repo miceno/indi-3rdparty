@@ -22,8 +22,10 @@
 /*
  * Uses a simple text string protocol to send messages to an Arduino. The Arduino code
  * determines how the open/close commands are enacted. Might use relays, linear actuators
- * or variable speed motors. Stopping roof movement is the responsibilty of the Arduino or
+ * or variable speed motors. Stopping roof movement is the responsibility of the Arduino or
  * controllers that it in turn uses.
+ *
+ * v1.4: introduces reconnect behavior on network failures.
  */
 
 #include <cstring>
@@ -31,6 +33,7 @@
 #include <memory>
 #include <string>
 #include <regex>
+#include "config.h"
 #include "rolloffino.h"
 
 // We declare an auto pointer to RollOffIno.
@@ -51,7 +54,7 @@ bool RollOffIno::ISSnoopDevice(XMLEle *root)
 ////////////////////////////////////////////////////////////////////////////////////////
 RollOffIno::RollOffIno() : INDI::InputInterface(this), INDI::OutputInterface(this)
 {
-    setVersion(1, 0);
+    setVersion(INDI_ROLLOFFINO_VERSION_MAJOR, INDI_ROLLOFFINO_VERSION_MINOR);
     SetDomeCapability(DOME_CAN_ABORT | DOME_CAN_PARK);           // Need the DOME_CAN_PARK capability for the scheduler
 }
 
@@ -883,7 +886,7 @@ bool RollOffIno::initialContact()
     }
     if (!readIno(readBuffer))
     {
-        LOGF_WARN("Failed reading initial contact reponse to %s", init);
+        LOGF_WARN("Failed reading initial contact response to %s", init);
         reportConnectionResult(false, "initial contact read failed");
         return false;
     }
